@@ -251,7 +251,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Pokemon Sealed Inventory</title>
+        <title>Santis Sealed Product</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
       </Head>
@@ -269,7 +269,7 @@ export default function Home() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse" />
               Live inventory
             </div>
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">Pokemon Sealed</h1>
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">Santis Sealed Product</h1>
             <p className="text-white/35 text-sm">Browse available stock · Prices per unit</p>
           </div>
         </header>
