@@ -246,7 +246,7 @@ function ComingSoonCard({ item, index }) {
   );
 }
 
-const POWERED_BY = ['shikari.tech', 'refractbot.com', 'bartproxies.com'];
+const POWERED_BY = ['stellaraio.com', 'alpineaio.com', 'shikari.tech', 'refractbot.com', 'bartproxies.com'];
 
 export default function Home() {
   const [items, setItems]       = useState([]);
@@ -288,7 +288,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Santis Sealed Product</title>
+        <title>Santi's Sealed Product</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
       </Head>
@@ -336,6 +336,7 @@ export default function Home() {
             <div className="text-left hidden sm:block">
               <div className="text-[11px] font-bold text-white/80 leading-tight">Join Discord</div>
               <div className="text-[9px] text-white/35 leading-tight">ACO Service</div>
+              <div className="text-[9px] text-white/20 leading-tight mt-0.5">Auto Checkout — we cop for you</div>
             </div>
             <svg className="w-3 h-3 text-white/25 group-hover:text-white/50 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -347,7 +348,7 @@ export default function Home() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse" />
               Live inventory
             </div>
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">Santis Sealed Product</h1>
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">Santi's Sealed Product</h1>
             <p className="text-white/35 text-sm">Browse available stock · Prices per unit</p>
           </div>
         </header>
