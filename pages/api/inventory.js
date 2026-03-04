@@ -33,6 +33,7 @@ export default async function handler(req, res) {
 
   if (inventoryCache.data && Date.now() - inventoryCache.timestamp < INVENTORY_TTL) {
     res.setHeader('X-Cache', 'HIT');
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
     return res.status(200).json(inventoryCache.data);
   }
 
@@ -82,6 +83,7 @@ export default async function handler(req, res) {
 
     inventoryCache = { data: items, timestamp: Date.now() };
     res.setHeader('X-Cache', 'MISS');
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
     res.status(200).json(items);
   } catch (err) {
     console.error('Inventory API error:', err);
