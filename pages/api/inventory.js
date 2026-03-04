@@ -39,7 +39,9 @@ async function fetchTCGPlayerData(rawUrl) {
   if (!rawUrl) return { image: null, marketPrice: null };
 
   const cached = tcgCache[rawUrl];
-  if (cached && Date.now() - cached.ts < TCG_TTL) {
+  // Use shorter TTL for failed fetches so we retry sooner
+  const ttl = cached?.marketPrice ? TCG_TTL : 5 * 60 * 1000;
+  if (cached && Date.now() - cached.ts < ttl) {
     return { image: cached.image, marketPrice: cached.marketPrice };
   }
 
@@ -49,36 +51,77 @@ async function fetchTCGPlayerData(rawUrl) {
     : null;
 
   let marketPrice = null;
-  try {
-    const cleanUrl = rawUrl.split('?')[0];
-    const r = await fetch(cleanUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-      },
-      signal: AbortSignal.timeout(7000),
-    });
-    const html = await r.text();
 
-    // Multiple patterns — TCGPlayer embeds pricing in SSR JSON blobs
-    const patterns = [
-      /"marketPrice":\s*([\d.]+)/,
-      /"market":\s*\{[^}]*?"value":\s*([\d.]+)/,
-      /class="[^"]*market-price[^"]*"[^>]*>\s*\$\s*([\d,]+\.?\d*)/i,
-      /Market Price[\s\S]{0,80}\$([\d,]+\.?\d*)/i,
-      /"price":\s*\{\s*"market":\s*([\d.]+)/,
-    ];
-
-    for (const pat of patterns) {
-      const m = html.match(pat);
-      if (m) { marketPrice = parseFloat(m[1].replace(/,/g, '')); break; }
+  // Method 1: TCGPlayer internal price API (no auth needed for reads)
+  if (productId) {
+    try {
+      const r = await fetch(
+        `https://mpapi.tcgplayer.com/v2/product/${productId}/pricepoints`,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Referer': 'https://www.tcgplayer.com/',
+            'Origin': 'https://www.tcgplayer.com',
+          },
+          signal: AbortSignal.timeout(5000),
+        }
+      );
+      if (r.ok) {
+        const d = await r.json();
+        // Grab the lowest market price across all printings/conditions
+        const prices = (d?.results ?? []).flatMap(p => p?.marketPrice ?? []);
+        const found = prices.find(p => p > 0);
+        if (found) marketPrice = found;
+        // Also try nested structure
+        if (!marketPrice) {
+          const flat = JSON.stringify(d).match(/"marketPrice":([\d.]+)/);
+          if (flat) marketPrice = parseFloat(flat[1]);
+        }
+      }
+    } catch (e) {
+      console.error('TCGPlayer price API error:', e.message);
     }
-  } catch (e) {
-    console.error('TCGPlayer scrape error:', rawUrl, e.message);
   }
 
+  // Method 2: Parse __NEXT_DATA__ from the product page HTML (SSR JSON blob)
+  if (!marketPrice) {
+    try {
+      const cleanUrl = rawUrl.split('?')[0];
+      const r = await fetch(cleanUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      const html = await r.text();
+
+      // Primary: __NEXT_DATA__ contains full SSR page state
+      const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (nextMatch) {
+        const blob = nextMatch[1];
+        const m = blob.match(/"marketPrice":([\d.]+)/);
+        if (m) marketPrice = parseFloat(m[1]);
+      }
+
+      // Fallback regex patterns on full HTML
+      if (!marketPrice) {
+        for (const pat of [
+          /"marketPrice":\s*([\d.]+)/,
+          /"market":\s*\{[^}]*?"value":\s*([\d.]+)/,
+          /Market Price[\s\S]{0,80}\$([\d,]+\.?\d*)/i,
+        ]) {
+          const m = html.match(pat);
+          if (m) { marketPrice = parseFloat(m[1].replace(/,/g, '')); break; }
+        }
+      }
+    } catch (e) {
+      console.error('TCGPlayer HTML scrape error:', e.message);
+    }
+  }
+
+  console.log(`TCGPlayer [${productId}] marketPrice=${marketPrice}`);
   tcgCache[rawUrl] = { image, marketPrice, ts: Date.now() };
   return { image, marketPrice };
 }
