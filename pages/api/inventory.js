@@ -1,37 +1,88 @@
 const INVENTORY_TTL = 60 * 1000;
-const SETS_TTL = 60 * 60 * 1000;
+const SETS_TTL      = 60 * 60 * 1000;
+const IMG_TTL       = 24 * 60 * 60 * 1000;
 
 let inventoryCache = { data: null, timestamp: 0 };
-let setsCache = { data: null, timestamp: 0 };
+let setsCache      = { data: null, timestamp: 0 };
+let imgCache       = {}; // productName -> { url, ts }
 
+// ── Fetch all Pokemon TCG sets ──────────────────────────────────────────────
 async function getSets() {
-  if (setsCache.data && Date.now() - setsCache.timestamp < SETS_TTL) {
-    return setsCache.data;
-  }
+  if (setsCache.data && Date.now() - setsCache.timestamp < SETS_TTL) return setsCache.data;
   try {
     const r = await fetch('https://api.pokemontcg.io/v2/sets?pageSize=250&orderBy=-releaseDate');
-    const json = await r.json();
-    setsCache = { data: json.data || [], timestamp: Date.now() };
+    const j = await r.json();
+    setsCache = { data: j.data || [], timestamp: Date.now() };
     return setsCache.data;
   } catch {
     return setsCache.data || [];
   }
 }
 
-function findSetLogo(sets, productName) {
+// ── Best set match by longest contained name ────────────────────────────────
+function findBestSet(sets, productName) {
   const name = productName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
-  let best = null;
-  let bestScore = 0;
+  let best = null, bestScore = 0;
   for (const set of sets) {
-    const setName = set.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
-    if (name.includes(setName) && setName.length > bestScore) {
-      best = set;
-      bestScore = setName.length;
-    }
+    const sn = set.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
+    if (name.includes(sn) && sn.length > bestScore) { best = set; bestScore = sn.length; }
   }
-  return best?.images?.logo || null;
+  return best;
 }
 
+// ── Cascade image search: TCG logo → TCG card → TCGPlayer search → null ────
+async function getProductImage(sets, name) {
+  if (imgCache[name] && Date.now() - imgCache[name].ts < IMG_TTL) return imgCache[name].url;
+
+  const set = findBestSet(sets, name);
+
+  // 1. Official set logo from Pokemon TCG API
+  if (set?.images?.logo) {
+    imgCache[name] = { url: set.images.logo, ts: Date.now() };
+    return set.images.logo;
+  }
+
+  // 2. Card artwork from matching set
+  if (set) {
+    try {
+      const r = await fetch(
+        `https://api.pokemontcg.io/v2/cards?q=set.id:${set.id}&pageSize=1&select=images`,
+        { signal: AbortSignal.timeout(3000) }
+      );
+      const d = await r.json();
+      const img = d.data?.[0]?.images?.large;
+      if (img) { imgCache[name] = { url: img, ts: Date.now() }; return img; }
+    } catch { /* timeout ok */ }
+  }
+
+  // 3. TCGPlayer CDN search via their public autocomplete endpoint
+  try {
+    const q = encodeURIComponent(name.replace(/booster box|etb|tin|blister|bundle/gi, '').trim());
+    const r = await fetch(
+      `https://mp-search-api.tcgplayer.com/v1/search/request?q=${q}&isFuzzy=false&size=1&from=0&filters=[]&listingType=All&context=product`,
+      {
+        headers: { 'Content-Type': 'application/json', 'x-tcg-client-info': 'tcgplayer-next' },
+        signal: AbortSignal.timeout(3000),
+      }
+    );
+    const d = await r.json();
+    const img = d.results?.[0]?.results?.[0]?.imageUrl;
+    if (img) { imgCache[name] = { url: img, ts: Date.now() }; return img; }
+  } catch { /* fine */ }
+
+  imgCache[name] = { url: null, ts: Date.now() };
+  return null;
+}
+
+// ── Days until a date ───────────────────────────────────────────────────────
+function daysUntil(isoDate) {
+  if (!isoDate) return null;
+  const today  = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(isoDate); target.setHours(0, 0, 0, 0);
+  return Math.ceil((target - today) / 86400000);
+}
+
+// ── Main handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
@@ -41,20 +92,20 @@ export default async function handler(req, res) {
     return res.status(200).json(inventoryCache.data);
   }
 
-  const token = process.env.AIRTABLE_TOKEN;
-  const baseId = process.env.AIRTABLE_BASE_ID;
+  const token     = process.env.AIRTABLE_TOKEN;
+  const baseId    = process.env.AIRTABLE_BASE_ID;
   const tableName = process.env.AIRTABLE_TABLE_NAME || 'Inventory';
 
-  if (!token || !baseId) {
-    return res.status(500).json({ error: 'Airtable credentials not configured' });
-  }
+  if (!token || !baseId) return res.status(500).json({ error: 'Airtable credentials not configured' });
 
   try {
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?fields[]=Name&fields[]=Price&fields[]=Quantity&fields[]=Condition&fields[]=Category&pageSize=100`;
+    const fields = [
+      'Name', 'Price', 'Quantity', 'Condition', 'Category',
+      'COMING_SOON', 'COMING_SOON_STOCK_COUNT', 'COMING_SOON_DATE',
+    ].map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
 
-    const airtableRes = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?${fields}&pageSize=100`;
+    const airtableRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 
     if (!airtableRes.ok) {
       const err = await airtableRes.text();
@@ -65,23 +116,34 @@ export default async function handler(req, res) {
     const json = await airtableRes.json();
     const sets = await getSets();
 
-    const items = (json.records || []).map((r) => {
-      const attachmentUrl = r.fields.Image?.[0]?.url || null;
-      const name = r.fields.Name || '';
-      const autoImage = attachmentUrl || findSetLogo(sets, name);
-      return {
-        id: r.id,
-        name,
-        price: r.fields.Price ?? null,
-        quantity: r.fields.Quantity ?? 0,
-        condition: r.fields.Condition || 'New',
-        category: r.fields.Category || 'Other',
-        image: autoImage,
-      };
-    });
+    const items = await Promise.all(
+      (json.records || []).map(async (r) => {
+        const name       = r.fields.Name || '';
+        const comingSoon = !!r.fields.COMING_SOON;
+        const csDate     = r.fields.COMING_SOON_DATE || null; // ISO string from Airtable
+        return {
+          id:             r.id,
+          name,
+          price:          r.fields.Price ?? null,
+          quantity:       r.fields.Quantity ?? 0,
+          condition:      r.fields.Condition || 'New',
+          category:       r.fields.Category || 'Other',
+          image:          await getProductImage(sets, name),
+          comingSoon,
+          comingSoonStock: r.fields.COMING_SOON_STOCK_COUNT ?? null,
+          comingSoonDate:  csDate,
+          daysUntil:       comingSoon ? daysUntil(csDate) : null,
+        };
+      })
+    );
 
+    // Sort: in-stock → coming soon (soonest first) → out-of-stock
     items.sort((a, b) => {
-      if ((a.quantity > 0) !== (b.quantity > 0)) return a.quantity > 0 ? -1 : 1;
+      const aIn = a.quantity > 0 && !a.comingSoon;
+      const bIn = b.quantity > 0 && !b.comingSoon;
+      if (aIn !== bIn) return aIn ? -1 : 1;
+      if (a.comingSoon !== b.comingSoon) return a.comingSoon ? -1 : 1;
+      if (a.comingSoon && b.comingSoon) return (a.daysUntil ?? 999) - (b.daysUntil ?? 999);
       return a.name.localeCompare(b.name);
     });
 

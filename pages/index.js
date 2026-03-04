@@ -9,7 +9,19 @@ function formatPrice(p) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(p);
 }
 
-// Deterministic unique gradient per product (for placeholder cards)
+function formatDate(isoDate) {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function daysLabel(days) {
+  if (days == null)  return null;
+  if (days <= 0)     return 'Arriving soon';
+  if (days === 1)    return 'Tomorrow';
+  return `${days} days away`;
+}
+
 function placeholderGradient(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
@@ -19,10 +31,7 @@ function placeholderGradient(name) {
 
 function SkeletonCard({ delay }) {
   return (
-    <div
-      className="rounded-2xl overflow-hidden border border-white/[0.06] bg-white/[0.02]"
-      style={{ animationDelay: `${delay}s` }}
-    >
+    <div className="rounded-2xl overflow-hidden border border-white/[0.06] bg-white/[0.02]" style={{ animationDelay: `${delay}s` }}>
       <div className="skeleton w-full aspect-video" />
       <div className="p-4 flex flex-col gap-3">
         <div className="skeleton h-3 rounded-md w-4/5" />
@@ -36,11 +45,32 @@ function SkeletonCard({ delay }) {
   );
 }
 
+function CardImage({ item }) {
+  const [err, setErr] = useState(false);
+  return (
+    <div
+      className="relative w-full aspect-video flex items-center justify-center overflow-hidden border-b border-white/[0.05]"
+      style={{ background: item.image && !err ? 'rgba(255,255,255,0.03)' : placeholderGradient(item.name) }}
+    >
+      {item.image && !err ? (
+        <img src={item.image} alt={item.name} className="w-full h-full object-contain p-2" loading="lazy" onError={() => setErr(true)} />
+      ) : (
+        <svg className="w-8 h-8 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <rect x="2" y="7" width="20" height="14" rx="2" strokeWidth={1} />
+          <circle cx="12" cy="14" r="3" strokeWidth={1} />
+        </svg>
+      )}
+      <span className="absolute bottom-2 left-2 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/50 text-white/40 backdrop-blur-sm border border-white/[0.07]">
+        {item.category}
+      </span>
+    </div>
+  );
+}
+
 function ProductCard({ item, index }) {
   const ref = useRef(null);
-  const [imgErr, setImgErr] = useState(false);
   const inStock = item.quantity > 0;
-  const low = inStock && item.quantity <= 3;
+  const low     = inStock && item.quantity <= 3;
 
   const onMouseMove = (e) => {
     if (!ref.current) return;
@@ -51,62 +81,25 @@ function ProductCard({ item, index }) {
 
   return (
     <div
-      ref={ref}
-      onMouseMove={onMouseMove}
+      ref={ref} onMouseMove={onMouseMove}
       className={`card-enter card-border group relative flex flex-col rounded-2xl overflow-hidden
         ${inStock ? 'hover:-translate-y-1' : 'opacity-30 grayscale-[50%] pointer-events-none'}`}
       style={{ animationDelay: `${Math.min(index, 15) * 0.04}s` }}
     >
-      {/* Mouse spotlight */}
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0 rounded-2xl"
-        style={{ background: 'radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.05) 0%, transparent 60%)' }}
-      />
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0 rounded-2xl"
+        style={{ background: 'radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.05) 0%, transparent 60%)' }} />
 
-      {/* Image / placeholder */}
-      <div
-        className="relative w-full aspect-video flex items-center justify-center overflow-hidden border-b border-white/[0.05]"
-        style={{ background: item.image && !imgErr ? 'rgba(255,255,255,0.03)' : placeholderGradient(item.name) }}
-      >
-        {item.image && !imgErr ? (
-          <img
-            src={item.image}
-            alt={item.name}
-            className="w-full h-full object-contain p-2"
-            loading="lazy"
-            onError={() => setImgErr(true)}
-          />
-        ) : (
-          <svg className="w-8 h-8 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
-              d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
-            <circle cx="12" cy="12" r="3" strokeWidth={1} />
-          </svg>
-        )}
+      <CardImage item={item} />
 
-        {/* Category chip floating on image */}
-        <span className="absolute bottom-2 left-2 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/50 text-white/40 backdrop-blur-sm border border-white/[0.07]">
-          {item.category}
-        </span>
-      </div>
-
-      {/* Body */}
       <div className="flex flex-col gap-2 p-4 flex-1 z-10">
         <div className="flex items-start gap-2">
-          <span className="text-sm font-semibold text-white/90 leading-snug flex-1 tracking-tight">
-            {item.name}
-          </span>
+          <span className="text-sm font-semibold text-white/90 leading-snug flex-1 tracking-tight">{item.name}</span>
           {item.condition === 'Damaged' ? (
-            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/25 text-orange-300" style={{ boxShadow: '0 0 8px rgba(249,115,22,0.15)' }}>
-              Damaged
-            </span>
+            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/25 text-orange-300" style={{ boxShadow: '0 0 8px rgba(249,115,22,0.15)' }}>Damaged</span>
           ) : (
-            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300" style={{ boxShadow: '0 0 8px rgba(52,211,153,0.15)' }}>
-              New
-            </span>
+            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300" style={{ boxShadow: '0 0 8px rgba(52,211,153,0.15)' }}>New</span>
           )}
         </div>
-
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/[0.05]">
           <span className="text-base font-extrabold price-gradient">{formatPrice(item.price)}</span>
           {inStock ? (
@@ -115,6 +108,113 @@ function ProductCard({ item, index }) {
             </span>
           ) : (
             <span className="text-xs text-white/20 italic">Out of stock</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComingSoonCard({ item, index }) {
+  const ref = useRef(null);
+  const days = item.daysUntil;
+
+  const onMouseMove = (e) => {
+    if (!ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    ref.current.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
+    ref.current.style.setProperty('--my', `${((e.clientY - r.top) / r.height) * 100}%`);
+  };
+
+  return (
+    <div
+      ref={ref} onMouseMove={onMouseMove}
+      className="card-enter group relative flex flex-col rounded-2xl overflow-hidden hover:-translate-y-1 transition-all duration-300"
+      style={{
+        animationDelay: `${Math.min(index, 15) * 0.04}s`,
+        background: 'linear-gradient(#080812, #080812) padding-box, linear-gradient(145deg, rgba(99,102,241,0.45) 0%, rgba(168,85,247,0.2) 50%, rgba(255,255,255,0.05) 100%) border-box',
+        border: '1px solid transparent',
+      }}
+    >
+      {/* Spotlight */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0 rounded-2xl"
+        style={{ background: 'radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(99,102,241,0.08) 0%, transparent 60%)' }} />
+
+      {/* Top glow bar */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/60 to-transparent" />
+
+      {/* Image with overlay */}
+      <div className="relative w-full aspect-video overflow-hidden border-b border-indigo-500/10">
+        {(() => {
+          const [err, setErr] = useState(false);
+          return item.image && !err ? (
+            <img src={item.image} alt={item.name}
+              className="w-full h-full object-contain p-2 opacity-50 saturate-50"
+              loading="lazy" onError={() => setErr(true)} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center" style={{ background: placeholderGradient(item.name), opacity: 0.5 }}>
+              <svg className="w-8 h-8 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <rect x="2" y="7" width="20" height="14" rx="2" strokeWidth={1} /><circle cx="12" cy="14" r="3" strokeWidth={1} />
+              </svg>
+            </div>
+          );
+        })()}
+
+        {/* Coming soon overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#080812]/90 via-[#080812]/40 to-transparent" />
+
+        {/* COMING SOON badge */}
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+          style={{
+            background: 'rgba(99,102,241,0.15)',
+            border: '1px solid rgba(99,102,241,0.4)',
+            boxShadow: '0 0 12px rgba(99,102,241,0.25)',
+          }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(129,140,248,0.8)' }} />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Coming Soon</span>
+        </div>
+
+        <span className="absolute bottom-2 left-2 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/50 text-white/30 backdrop-blur-sm border border-white/[0.07]">
+          {item.category}
+        </span>
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-col gap-3 p-4 flex-1 z-10">
+        <span className="text-sm font-semibold text-white/80 leading-snug tracking-tight">{item.name}</span>
+
+        {/* Days countdown */}
+        {days != null && (
+          <div className="flex items-baseline gap-2">
+            {days > 0 ? (
+              <>
+                <span className="text-3xl font-black tabular-nums" style={{
+                  background: 'linear-gradient(135deg, #818cf8, #c084fc)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                }}>{days}</span>
+                <span className="text-xs text-white/30 font-medium">days away</span>
+              </>
+            ) : (
+              <span className="text-sm font-bold text-indigo-300 animate-pulse">Arriving soon</span>
+            )}
+          </div>
+        )}
+
+        {/* Date + stock row */}
+        <div className="flex items-center justify-between pt-2 border-t border-indigo-500/10 mt-auto">
+          <div className="flex flex-col gap-0.5">
+            {item.comingSoonDate && (
+              <span className="text-[11px] text-white/40 font-medium">{formatDate(item.comingSoonDate)}</span>
+            )}
+            {item.price && (
+              <span className="text-sm font-bold price-gradient">{formatPrice(item.price)}</span>
+            )}
+          </div>
+          {item.comingSoonStock && (
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[10px] text-white/25 uppercase tracking-wide">Expected</span>
+              <span className="text-sm font-bold text-indigo-300">~{item.comingSoonStock} units</span>
+            </div>
           )}
         </div>
       </div>
@@ -144,8 +244,9 @@ export default function Home() {
     return true;
   }), [items, cat, cond, search]);
 
-  const inStock    = filtered.filter(i => i.quantity > 0);
-  const outOfStock = filtered.filter(i => i.quantity === 0);
+  const inStock    = filtered.filter(i => i.quantity > 0 && !i.comingSoon);
+  const comingSoon = filtered.filter(i => i.comingSoon);
+  const outOfStock = filtered.filter(i => i.quantity === 0 && !i.comingSoon);
 
   return (
     <>
@@ -157,77 +258,55 @@ export default function Home() {
 
       <div className="min-h-screen dot-grid text-white">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <header className="relative overflow-hidden border-b border-white/[0.06] pt-16 pb-12 px-6 text-center">
-          {/* Purple gradient orb */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-[700px] h-[260px] rounded-full bg-indigo-600/[0.18] blur-[100px]" />
           </div>
-          {/* Second orb for depth */}
           <div className="absolute bottom-0 left-1/3 w-[300px] h-[150px] rounded-full bg-purple-600/[0.1] blur-[80px] pointer-events-none" />
-
           <div className="relative z-10 max-w-lg mx-auto">
-            {/* Live pill */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50 text-xs font-medium mb-5 backdrop-blur-md">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse" />
               Live inventory
             </div>
-
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">
-              Pokemon Sealed
-            </h1>
-            <p className="text-white/35 text-sm">
-              Browse available stock · Prices per unit
-            </p>
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">Pokemon Sealed</h1>
+            <p className="text-white/35 text-sm">Browse available stock · Prices per unit</p>
           </div>
         </header>
 
-        {/* ── Sticky controls ── */}
+        {/* Controls */}
         <div className="sticky top-0 z-30 flex flex-wrap gap-2 px-4 sm:px-6 py-3 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
-          {/* Search */}
           <div className="relative flex-1 min-w-[180px]">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none"
-              fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white placeholder-white/25 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-            />
+            <input type="text" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white placeholder-white/25 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all" />
           </div>
-
-          {/* Category */}
           <select value={cat} onChange={e => setCat(e.target.value)}
             className="px-3 py-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white/60 focus:outline-none focus:border-indigo-500/50 cursor-pointer hover:bg-white/[0.08] transition-all">
             {CATEGORIES.map(c => <option key={c} className="bg-[#0c0c14]">{c === 'All' ? 'All Categories' : c}</option>)}
           </select>
-
-          {/* Condition */}
           <select value={cond} onChange={e => setCond(e.target.value)}
             className="px-3 py-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white/60 focus:outline-none focus:border-indigo-500/50 cursor-pointer hover:bg-white/[0.08] transition-all">
             {CONDITIONS.map(c => <option key={c} className="bg-[#0c0c14]">{c === 'All' ? 'All Conditions' : c}</option>)}
           </select>
         </div>
 
-        {/* ── Stats ── */}
+        {/* Stats */}
         {!loading && !error && (
           <div className="flex gap-5 px-6 py-2.5 text-xs text-white/25 border-b border-white/[0.04]">
             <span><span className="text-indigo-400 font-semibold">{inStock.length}</span> in stock</span>
+            {comingSoon.length > 0 && <span><span className="text-indigo-300 font-semibold">{comingSoon.length}</span> coming soon</span>}
             {outOfStock.length > 0 && <span><span className="text-white/35 font-semibold">{outOfStock.length}</span> out of stock</span>}
             <span><span className="text-white/35 font-semibold">{items.length}</span> products</span>
           </div>
         )}
 
-        {/* ── Grid ── */}
+        {/* Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 p-4 sm:p-6 pb-24">
 
-          {loading && Array.from({ length: 10 }).map((_, i) =>
-            <SkeletonCard key={i} delay={i * 0.06} />
-          )}
+          {loading && Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} delay={i * 0.06} />)}
 
           {error && (
             <div className="col-span-full text-center py-24">
@@ -236,31 +315,39 @@ export default function Home() {
             </div>
           )}
 
-          {!loading && !error && inStock.length === 0 && outOfStock.length === 0 && (
+          {!loading && !error && inStock.length === 0 && comingSoon.length === 0 && outOfStock.length === 0 && (
             <div className="col-span-full text-center py-24">
               <p className="text-white/50 font-medium mb-1">No results</p>
               <p className="text-sm text-white/25">Try adjusting your search or filters</p>
             </div>
           )}
 
+          {/* In stock */}
           {inStock.map((item, i) => <ProductCard key={item.id} item={item} index={i} />)}
 
-          {outOfStock.length > 0 && inStock.length > 0 && (
-            <div className="col-span-full flex items-center gap-3 py-1">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-white/20">Out of stock</span>
+          {/* Coming soon section */}
+          {comingSoon.length > 0 && (
+            <div className="col-span-full flex items-center gap-3 py-1 mt-2">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(129,140,248,0.8)' }} />
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-indigo-400/70">Coming Soon</span>
+              </div>
+              <div className="flex-1 h-px" style={{ background: 'linear-gradient(to right, rgba(99,102,241,0.3), transparent)' }} />
+            </div>
+          )}
+          {comingSoon.map((item, i) => <ComingSoonCard key={item.id} item={item} index={inStock.length + i} />)}
+
+          {/* Out of stock section */}
+          {outOfStock.length > 0 && (inStock.length > 0 || comingSoon.length > 0) && (
+            <div className="col-span-full flex items-center gap-3 py-1 mt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-white/20">Out of Stock</span>
               <div className="flex-1 h-px bg-white/[0.05]" />
             </div>
           )}
-
-          {outOfStock.map((item, i) =>
-            <ProductCard key={item.id} item={item} index={inStock.length + i} />
-          )}
+          {outOfStock.map((item, i) => <ProductCard key={item.id} item={item} index={inStock.length + comingSoon.length + i} />)}
         </div>
 
-        {/* ── Footer ── */}
-        <div className="text-center pb-8 text-[11px] text-white/15 tracking-wider uppercase">
-          Updated every 60s
-        </div>
+        <div className="text-center pb-8 text-[11px] text-white/15 tracking-wider uppercase">Updated every 60s</div>
       </div>
     </>
   );
