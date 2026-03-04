@@ -46,7 +46,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?fields[]=Name&fields[]=Price&fields[]=Quantity&fields[]=Condition&fields[]=Category&fields[]=Image&pageSize=100`;
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?fields[]=Name&fields[]=Price&fields[]=Quantity&fields[]=Condition&fields[]=Category&pageSize=100`;
 
     const airtableRes = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
