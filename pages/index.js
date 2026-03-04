@@ -100,14 +100,34 @@ function ProductCard({ item, index }) {
             <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300" style={{ boxShadow: '0 0 8px rgba(52,211,153,0.15)' }}>New</span>
           )}
         </div>
-        <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/[0.05]">
-          <span className="text-base font-extrabold price-gradient">{formatPrice(item.price)}</span>
-          {inStock ? (
-            <span className={`text-xs font-medium ${low ? 'text-orange-300 animate-pulse' : 'text-white/35'}`}>
-              {low ? `Only ${item.quantity} left!` : `${item.quantity} in stock`}
+        <div className="flex flex-col gap-1.5 mt-auto pt-3 border-t border-white/[0.05]">
+          {/* Bulk price + stock */}
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-base font-extrabold price-gradient">
+              {item.bulkPrice ? `${formatPrice(item.bulkPrice)}/unit` : '—'}
             </span>
-          ) : (
-            <span className="text-xs text-white/20 italic">Out of stock</span>
+            {inStock ? (
+              <span className={`text-xs font-medium flex-shrink-0 ${low ? 'text-orange-300 animate-pulse' : 'text-white/35'}`}>
+                {low ? `Only ${item.quantity} left!` : `${item.quantity} units`}
+              </span>
+            ) : (
+              <span className="text-xs text-white/20 italic">Out of stock</span>
+            )}
+          </div>
+          {/* Market reference + bulk % */}
+          {item.marketPrice && (
+            <div className="flex items-center gap-1.5 text-[11px] text-white/30">
+              {item.bulkPercentage && (
+                <span className="font-semibold text-indigo-400/70">{item.bulkPercentage}%</span>
+              )}
+              <span>of {formatPrice(item.marketPrice)} market</span>
+            </div>
+          )}
+          {/* Total for all units */}
+          {item.totalValue && inStock && (
+            <div className="text-[11px] font-semibold text-white/50">
+              {formatPrice(item.totalValue)} for all {item.quantity} units
+            </div>
           )}
         </div>
       </div>
@@ -207,8 +227,11 @@ function ComingSoonCard({ item, index }) {
             {item.comingSoonDate && (
               <span className="text-[11px] text-white/40 font-medium">{formatDate(item.comingSoonDate)}</span>
             )}
-            {item.price && (
-              <span className="text-sm font-bold price-gradient">{formatPrice(item.price)}</span>
+            {item.bulkPrice && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold price-gradient">{formatPrice(item.bulkPrice)}/unit</span>
+                {item.bulkPercentage && <span className="text-[10px] text-indigo-400/60">{item.bulkPercentage}%</span>}
+              </div>
             )}
           </div>
           {item.comingSoonStock && (

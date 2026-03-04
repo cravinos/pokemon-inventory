@@ -126,17 +126,10 @@ async function fetchTCGPlayerData(rawUrl) {
   return { image, marketPrice };
 }
 
-// ── Pricing logic ───────────────────────────────────────────────────────────
-// Bulk seller discount: target 87–92% of market price
-// • my price > market         → bulk discount below market (87–92%)
-// • my price < 75% of market  → market pumped, protect (87–92%)
-// • my price is in range      → use as-is
-function computePrice(myPrice, marketPrice) {
-  if (!marketPrice || !myPrice || myPrice <= 0) return myPrice;
-  const bulkFactor = 0.87 + Math.random() * 0.05; // 87–92%
-  if (myPrice > marketPrice)          return Math.round(marketPrice * bulkFactor * 100) / 100;
-  if (myPrice < marketPrice * 0.75)   return Math.round(marketPrice * bulkFactor * 100) / 100;
-  return myPrice;
+// ── Bulk price calculation ──────────────────────────────────────────────────
+function calcBulkPrice(marketPrice, bulkPct) {
+  if (!marketPrice || !bulkPct) return null;
+  return Math.round(marketPrice * (bulkPct / 100) * 100) / 100;
 }
 
 // ── Fallback image search (TCG card art) ────────────────────────────────────
@@ -182,9 +175,9 @@ export default async function handler(req, res) {
 
   try {
     const fieldNames = [
-      'Name', 'Price', 'Quantity', 'Condition', 'Category',
+      'Name', 'Quantity', 'Condition', 'Category',
       'COMING_SOON', 'COMING_SOON_STOCK_COUNT', 'COMING_SOON_DATE',
-      'TCG_PLAYER_LINK',
+      'TCG_PLAYER_LINK', 'BULK_PERCENTAGE',
     ];
     const fields = fieldNames.map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
     const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?${fields}&pageSize=100`;
@@ -201,28 +194,31 @@ export default async function handler(req, res) {
 
     const items = await Promise.all(
       (json.records || []).map(async (r) => {
-        const name        = r.fields.Name || '';
-        const rawPrice    = r.fields.Price ?? null;
-        const tcgUrl      = r.fields.TCG_PLAYER_LINK || null;
-        const comingSoon  = !!r.fields.COMING_SOON;
-        const csDate      = r.fields.COMING_SOON_DATE || null;
+        const name          = r.fields.Name || '';
+        const quantity      = r.fields.Quantity ?? 0;
+        const bulkPct       = r.fields.BULK_PERCENTAGE ?? null;
+        const tcgUrl        = r.fields.TCG_PLAYER_LINK || null;
+        const comingSoon    = !!r.fields.COMING_SOON;
+        const csDate        = r.fields.COMING_SOON_DATE || null;
 
-        // Fetch TCGPlayer data (image + market price) or fall back to TCG API set logo
         const { image: tcgImage, marketPrice } = await fetchTCGPlayerData(tcgUrl);
-        const image = tcgImage || await getSetImage(sets, name);
-
-        // Compute display price with market-aware logic
-        const displayPrice = computePrice(rawPrice, marketPrice);
+        const image      = tcgImage || await getSetImage(sets, name);
+        const bulkPrice  = calcBulkPrice(marketPrice, bulkPct);
+        const totalValue = bulkPrice && quantity > 0
+          ? Math.round(bulkPrice * quantity * 100) / 100
+          : null;
 
         return {
           id:              r.id,
           name,
-          price:           displayPrice,
-          marketPrice:     marketPrice,   // kept for potential future admin use
-          quantity:        r.fields.Quantity ?? 0,
+          quantity,
           condition:       r.fields.Condition || 'New',
           category:        r.fields.Category || 'Other',
           image,
+          marketPrice,
+          bulkPercentage:  bulkPct,
+          bulkPrice,
+          totalValue,
           comingSoon,
           comingSoonStock: r.fields.COMING_SOON_STOCK_COUNT ?? null,
           comingSoonDate:  csDate,
