@@ -50,10 +50,10 @@ function CardImage({ item }) {
   return (
     <div
       className="relative w-full aspect-video flex items-center justify-center overflow-hidden border-b border-white/[0.05]"
-      style={{ background: item.image && !err ? 'rgba(255,255,255,0.03)' : placeholderGradient(item.name) }}
+      style={{ background: item.image && !err ? '#ffffff' : placeholderGradient(item.name) }}
     >
       {item.image && !err ? (
-        <img src={item.image} alt={item.name} className="w-full h-full object-contain p-2" loading="lazy" onError={() => setErr(true)} />
+        <img src={item.image} alt={item.name} className="w-full h-full object-contain p-3" loading="lazy" onError={() => setErr(true)} />
       ) : (
         <svg className="w-8 h-8 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <rect x="2" y="7" width="20" height="14" rx="2" strokeWidth={1} />
@@ -149,7 +149,8 @@ function ComingSoonCard({ item, index }) {
           const [err, setErr] = useState(false);
           return item.image && !err ? (
             <img src={item.image} alt={item.name}
-              className="w-full h-full object-contain p-2 opacity-50 saturate-50"
+              className="w-full h-full object-contain p-3 opacity-60 saturate-50"
+              style={{ background: '#ffffff' }}
               loading="lazy" onError={() => setErr(true)} />
           ) : (
             <div className="w-full h-full flex items-center justify-center" style={{ background: placeholderGradient(item.name), opacity: 0.5 }}>
