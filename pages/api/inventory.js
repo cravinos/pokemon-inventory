@@ -54,8 +54,8 @@ export default async function handler(req, res) {
 
     if (!airtableRes.ok) {
       const err = await airtableRes.text();
-      console.error('Airtable error:', err);
-      return res.status(502).json({ error: 'Failed to fetch from Airtable' });
+      console.error('Airtable error:', airtableRes.status, err);
+      return res.status(502).json({ error: `Airtable ${airtableRes.status}: ${err}` });
     }
 
     const json = await airtableRes.json();
