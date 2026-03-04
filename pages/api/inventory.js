@@ -127,16 +127,15 @@ async function fetchTCGPlayerData(rawUrl) {
 }
 
 // ── Pricing logic ───────────────────────────────────────────────────────────
-// • market < my price  → use market (stay competitive)
-// • my price < 75% of market → bump to 85-90% of market (protect against underpricing pumps)
-// • otherwise → use my price as-is
+// Bulk seller discount: target 87–92% of market price
+// • my price > market         → bulk discount below market (87–92%)
+// • my price < 75% of market  → market pumped, protect (87–92%)
+// • my price is in range      → use as-is
 function computePrice(myPrice, marketPrice) {
   if (!marketPrice || !myPrice || myPrice <= 0) return myPrice;
-  if (marketPrice < myPrice)          return Math.round(marketPrice * 100) / 100;
-  if (myPrice < marketPrice * 0.75) {
-    const factor = 0.85 + Math.random() * 0.05; // 85 – 90 %
-    return Math.round(marketPrice * factor * 100) / 100;
-  }
+  const bulkFactor = 0.87 + Math.random() * 0.05; // 87–92%
+  if (myPrice > marketPrice)          return Math.round(marketPrice * bulkFactor * 100) / 100;
+  if (myPrice < marketPrice * 0.75)   return Math.round(marketPrice * bulkFactor * 100) / 100;
   return myPrice;
 }
 
