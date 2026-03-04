@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
-import '../styles/globals.css';
 
 const CATEGORIES = ['All Categories', 'Booster Box', 'ETB', 'Tin', 'Blister Pack', 'Bundle', 'Other'];
 const CONDITIONS = ['All Conditions', 'New', 'Damaged'];
