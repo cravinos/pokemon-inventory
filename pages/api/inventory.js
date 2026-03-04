@@ -19,13 +19,17 @@ async function getSets() {
 }
 
 function findSetLogo(sets, productName) {
-  const name = productName.toLowerCase();
-  // Try to match any set name contained in the product name
-  const match = sets.find((s) => {
-    const setName = s.name.toLowerCase();
-    return name.includes(setName) || setName.includes(name.split(' ').slice(0, 3).join(' '));
-  });
-  return match?.images?.logo || null;
+  const name = productName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
+  let best = null;
+  let bestScore = 0;
+  for (const set of sets) {
+    const setName = set.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
+    if (name.includes(setName) && setName.length > bestScore) {
+      best = set;
+      bestScore = setName.length;
+    }
+  }
+  return best?.images?.logo || null;
 }
 
 export default async function handler(req, res) {
