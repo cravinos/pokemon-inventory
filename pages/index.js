@@ -22,6 +22,27 @@ function daysLabel(days) {
   return `${days} days away`;
 }
 
+function formatLastUpdated(iso) {
+  if (!iso) return null;
+  const d    = new Date(iso);
+  const now  = new Date();
+  const diff = Math.floor((now - d) / 1000); // seconds
+  if (diff < 60)  return 'just now';
+  if (diff < 3600) {
+    const m = Math.floor(diff / 60);
+    return `${m}m ago`;
+  }
+  const today     = new Date(); today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  if (d >= today) {
+    return `today at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  }
+  if (d >= yesterday) {
+    return `yesterday at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  }
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function placeholderGradient(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
@@ -101,10 +122,9 @@ function ProductCard({ item, index }) {
           )}
         </div>
         <div className="flex flex-col gap-1.5 mt-auto pt-3 border-t border-white/[0.05]">
-          {/* Bulk price + stock */}
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-base font-extrabold price-gradient">
-              {item.bulkPrice ? `${formatPrice(item.bulkPrice)}/unit` : '—'}
+              {item.marketPrice ? `${formatPrice(item.marketPrice)}` : '—'}
             </span>
             {inStock ? (
               <span className={`text-xs font-medium flex-shrink-0 ${low ? 'text-orange-300 animate-pulse' : 'text-white/35'}`}>
@@ -114,20 +134,8 @@ function ProductCard({ item, index }) {
               <span className="text-xs text-white/20 italic">Out of stock</span>
             )}
           </div>
-          {/* Market reference + bulk % */}
           {item.marketPrice && (
-            <div className="flex items-center gap-1.5 text-[11px] text-white/30">
-              {item.bulkPercentage && (
-                <span className="font-semibold text-indigo-400/70">{item.bulkPercentage}%</span>
-              )}
-              <span>of {formatPrice(item.marketPrice)} market</span>
-            </div>
-          )}
-          {/* Total for all units */}
-          {item.totalValue && inStock && (
-            <div className="text-[11px] font-semibold text-white/50">
-              {formatPrice(item.totalValue)} for all {item.quantity} units
-            </div>
+            <div className="text-[11px] text-white/30">Market Price</div>
           )}
         </div>
       </div>
@@ -227,10 +235,10 @@ function ComingSoonCard({ item, index }) {
             {item.comingSoonDate && (
               <span className="text-[11px] text-white/40 font-medium">{formatDate(item.comingSoonDate)}</span>
             )}
-            {item.bulkPrice && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold price-gradient">{formatPrice(item.bulkPrice)}/unit</span>
-                {item.bulkPercentage && <span className="text-[10px] text-indigo-400/60">{item.bulkPercentage}%</span>}
+            {item.marketPrice && (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-bold price-gradient">{formatPrice(item.marketPrice)}</span>
+                <span className="text-[10px] text-white/30">Market Price</span>
               </div>
             )}
           </div>
@@ -247,17 +255,24 @@ function ComingSoonCard({ item, index }) {
 }
 
 export default function Home() {
-  const [items, setItems]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
-  const [search, setSearch]     = useState('');
-  const [cat, setCat]           = useState('All');
-  const [cond, setCond]         = useState('All');
+  const [items, setItems]           = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+  const [search, setSearch]         = useState('');
+  const [cat, setCat]               = useState('All');
+  const [cond, setCond]             = useState('All');
+  const [lastUpdated, setLastUpdated] = useState(null);
+
   useEffect(() => {
-    fetch('/api/inventory')
-      .then(r => { if (!r.ok) throw new Error('Failed to load inventory'); return r.json(); })
-      .then(d => { setItems(d); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
+    function load() {
+      fetch('/api/inventory')
+        .then(r => { if (!r.ok) throw new Error('Failed to load inventory'); return r.json(); })
+        .then(d => { setItems(d.items); setLastUpdated(d.lastUpdated); setLoading(false); setError(null); })
+        .catch(e => { setError(e.message); setLoading(false); });
+    }
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
   }, []);
 
   const filtered = useMemo(() => items.filter(item => {
@@ -290,9 +305,19 @@ export default function Home() {
 
 
           <div className="relative z-10 max-w-lg mx-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50 text-xs font-medium mb-5 backdrop-blur-md">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse" />
-              Live inventory
+            <div className="flex items-center justify-center gap-2 mb-5 flex-wrap">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50 text-xs font-medium backdrop-blur-md">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse" />
+                Live inventory
+              </div>
+              {lastUpdated && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.07] text-white/35 text-xs font-medium backdrop-blur-md">
+                  <svg className="w-3 h-3 text-white/25" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Updated {formatLastUpdated(lastUpdated)}
+                </div>
+              )}
             </div>
             <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">Santi's Sealed Product</h1>
             <p className="text-white/35 text-sm">Browse available stock · Prices per unit</p>
@@ -372,7 +397,7 @@ export default function Home() {
           {outOfStock.map((item, i) => <ProductCard key={item.id} item={item} index={inStock.length + comingSoon.length + i} />)}
         </div>
 
-        <div className="text-center pb-8 text-[11px] text-white/15 tracking-wider uppercase">Updated every 60s</div>
+        <div className="text-center pb-8 text-[11px] text-white/15 tracking-wider uppercase">Auto-updates every 60s</div>
       </div>
     </>
   );

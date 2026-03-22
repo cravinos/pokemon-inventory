@@ -3,7 +3,7 @@ const SETS_TTL      = 60  * 60 * 1000;
 const IMG_TTL       = 24  * 60 * 60 * 1000;
 const TCG_TTL       = 24  * 60 * 60 * 1000;
 
-let inventoryCache = { data: null, timestamp: 0 };
+let inventoryCache = { data: null, timestamp: 0, lastChangedAt: null, snapshot: null };
 let setsCache      = { data: null, timestamp: 0 };
 let imgCache       = {};   // name  → { url, ts }
 let tcgCache       = {};   // url   → { image, marketPrice, ts }
@@ -164,8 +164,8 @@ export default async function handler(req, res) {
 
   if (inventoryCache.data && Date.now() - inventoryCache.timestamp < INVENTORY_TTL) {
     res.setHeader('X-Cache', 'HIT');
-    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-    return res.status(200).json(inventoryCache.data);
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=86400');
+    return res.status(200).json({ items: inventoryCache.data, lastUpdated: inventoryCache.lastChangedAt });
   }
 
   const token     = process.env.AIRTABLE_TOKEN;
@@ -237,10 +237,15 @@ export default async function handler(req, res) {
       return a.name.localeCompare(b.name);
     });
 
-    inventoryCache = { data: items, timestamp: Date.now() };
+    // Detect if inventory actually changed to track real last-updated time
+    const snapshot = JSON.stringify(items.map(i => ({ id: i.id, quantity: i.quantity, name: i.name, condition: i.condition, category: i.category, comingSoon: i.comingSoon })));
+    const changed  = snapshot !== inventoryCache.snapshot;
+    const lastChangedAt = changed ? new Date().toISOString() : (inventoryCache.lastChangedAt ?? new Date().toISOString());
+
+    inventoryCache = { data: items, timestamp: Date.now(), lastChangedAt, snapshot };
     res.setHeader('X-Cache', 'MISS');
-    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-    res.status(200).json(items);
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=86400');
+    res.status(200).json({ items, lastUpdated: lastChangedAt });
   } catch (err) {
     console.error('Inventory API error:', err);
     res.status(500).json({ error: 'Internal server error' });
