@@ -3,6 +3,7 @@ import Head from 'next/head';
 
 const CATEGORIES = ['All', 'Booster Box', 'ETB', 'Tin', 'Blister Pack', 'Bundle', 'Other'];
 const CONDITIONS  = ['All', 'New', 'Damaged'];
+const STAGES = ['All', 'In Stock', 'Wave 2', 'Preorder'];
 
 function formatPrice(p) {
   if (p == null) return '—';
@@ -91,7 +92,8 @@ function CardImage({ item }) {
 function ProductCard({ item, index }) {
   const ref = useRef(null);
   const inStock = item.quantity > 0;
-  const low     = inStock && item.quantity <= 3;
+  const critical = inStock && item.quantity <= 3;
+  const lowStock = inStock && item.quantity < 100 && item.quantity > 3;
 
   const onMouseMove = (e) => {
     if (!ref.current) return;
@@ -112,6 +114,31 @@ function ProductCard({ item, index }) {
 
       <CardImage item={item} />
 
+      {/* Low / critical stock flag */}
+      {(lowStock || critical) && (
+        <div className="absolute top-2 right-2 z-20">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+              critical
+                ? 'bg-orange-500/15 border border-orange-500/40 text-orange-300 animate-pulse'
+                : 'bg-amber-500/15 border border-amber-500/35 text-amber-300'
+            }`}
+            style={{
+              boxShadow: critical
+                ? '0 0 10px rgba(249,115,22,0.25)'
+                : '0 0 8px rgba(245,158,11,0.18)',
+            }}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                critical ? 'bg-orange-400' : 'bg-amber-400'
+              }`}
+            />
+            Low Stock
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2 p-4 flex-1 z-10">
         <div className="flex items-start gap-2">
           <span className="text-sm font-semibold text-white/90 leading-snug flex-1 tracking-tight">{item.name}</span>
@@ -127,8 +154,18 @@ function ProductCard({ item, index }) {
               {item.marketPrice ? `${formatPrice(item.marketPrice)}` : '—'}
             </span>
             {inStock ? (
-              <span className={`text-xs font-medium flex-shrink-0 ${low ? 'text-orange-300 animate-pulse' : 'text-white/35'}`}>
-                {low ? `Only ${item.quantity} left!` : `${item.quantity} units`}
+              <span
+                className={`text-xs font-medium flex-shrink-0 ${
+                  critical
+                    ? 'text-orange-300 animate-pulse'
+                    : lowStock
+                    ? 'text-amber-300'
+                    : 'text-white/35'
+                }`}
+              >
+                {critical
+                  ? `Only ${item.quantity} left!`
+                  : `${item.quantity} units`}
               </span>
             ) : (
               <span className="text-xs text-white/20 italic">Out of stock</span>
@@ -146,6 +183,40 @@ function ProductCard({ item, index }) {
 function ComingSoonCard({ item, index }) {
   const ref = useRef(null);
   const days = item.daysUntil;
+  const isWave2 = /wave\s*2/i.test(item.name);
+  const accent = isWave2
+    ? {
+        gradient:
+          'linear-gradient(#080812, #080812) padding-box, linear-gradient(145deg, rgba(245,158,11,0.55) 0%, rgba(217,119,6,0.25) 50%, rgba(255,255,255,0.05) 100%) border-box',
+        spotlight:
+          'radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(245,158,11,0.10) 0%, transparent 60%)',
+        topBar: 'from-transparent via-amber-500/60 to-transparent',
+        borderBottom: 'border-amber-500/15',
+        badgeBg: 'rgba(245,158,11,0.15)',
+        badgeBorder: 'rgba(245,158,11,0.45)',
+        badgeShadow: '0 0 12px rgba(245,158,11,0.3)',
+        badgeText: 'Wave 2',
+        badgeColor: 'text-amber-300',
+        badgeDotShadow: '0 0 6px rgba(252,211,77,0.85)',
+        countText: 'linear-gradient(135deg, #fbbf24, #f97316)',
+        unitsColor: 'text-amber-300',
+      }
+    : {
+        gradient:
+          'linear-gradient(#080812, #080812) padding-box, linear-gradient(145deg, rgba(99,102,241,0.45) 0%, rgba(168,85,247,0.2) 50%, rgba(255,255,255,0.05) 100%) border-box',
+        spotlight:
+          'radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(99,102,241,0.08) 0%, transparent 60%)',
+        topBar: 'from-transparent via-indigo-500/60 to-transparent',
+        borderBottom: 'border-indigo-500/10',
+        badgeBg: 'rgba(99,102,241,0.15)',
+        badgeBorder: 'rgba(99,102,241,0.4)',
+        badgeShadow: '0 0 12px rgba(99,102,241,0.25)',
+        badgeText: 'Coming Soon',
+        badgeColor: 'text-indigo-300',
+        badgeDotShadow: '0 0 6px rgba(129,140,248,0.8)',
+        countText: 'linear-gradient(135deg, #818cf8, #c084fc)',
+        unitsColor: 'text-indigo-300',
+      };
 
   const onMouseMove = (e) => {
     if (!ref.current) return;
@@ -160,19 +231,19 @@ function ComingSoonCard({ item, index }) {
       className="card-enter group relative flex flex-col rounded-2xl overflow-hidden hover:-translate-y-1 transition-all duration-300"
       style={{
         animationDelay: `${Math.min(index, 15) * 0.04}s`,
-        background: 'linear-gradient(#080812, #080812) padding-box, linear-gradient(145deg, rgba(99,102,241,0.45) 0%, rgba(168,85,247,0.2) 50%, rgba(255,255,255,0.05) 100%) border-box',
+        background: accent.gradient,
         border: '1px solid transparent',
       }}
     >
       {/* Spotlight */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0 rounded-2xl"
-        style={{ background: 'radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(99,102,241,0.08) 0%, transparent 60%)' }} />
+        style={{ background: accent.spotlight }} />
 
       {/* Top glow bar */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/60 to-transparent" />
+      <div className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r ${accent.topBar}`} />
 
       {/* Image with overlay */}
-      <div className="relative w-full aspect-video overflow-hidden border-b border-indigo-500/10">
+      <div className={`relative w-full aspect-video overflow-hidden border-b ${accent.borderBottom}`}>
         {(() => {
           const [err, setErr] = useState(false);
           return item.image && !err ? (
@@ -192,15 +263,15 @@ function ComingSoonCard({ item, index }) {
         {/* Coming soon overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#080812]/90 via-[#080812]/40 to-transparent" />
 
-        {/* COMING SOON badge */}
+        {/* COMING SOON / WAVE 2 badge */}
         <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
           style={{
-            background: 'rgba(99,102,241,0.15)',
-            border: '1px solid rgba(99,102,241,0.4)',
-            boxShadow: '0 0 12px rgba(99,102,241,0.25)',
+            background: accent.badgeBg,
+            border: `1px solid ${accent.badgeBorder}`,
+            boxShadow: accent.badgeShadow,
           }}>
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(129,140,248,0.8)' }} />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Coming Soon</span>
+          <span className={`w-1.5 h-1.5 rounded-full ${isWave2 ? 'bg-amber-400' : 'bg-indigo-400'} animate-pulse`} style={{ boxShadow: accent.badgeDotShadow }} />
+          <span className={`text-[10px] font-bold uppercase tracking-widest ${accent.badgeColor}`}>{accent.badgeText}</span>
         </div>
 
         <span className="absolute bottom-2 left-2 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/50 text-white/30 backdrop-blur-sm border border-white/[0.07]">
@@ -218,19 +289,19 @@ function ComingSoonCard({ item, index }) {
             {days > 0 ? (
               <>
                 <span className="text-3xl font-black tabular-nums" style={{
-                  background: 'linear-gradient(135deg, #818cf8, #c084fc)',
+                  background: accent.countText,
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
                 }}>{days}</span>
                 <span className="text-xs text-white/30 font-medium">days away</span>
               </>
             ) : (
-              <span className="text-sm font-bold text-indigo-300 animate-pulse">Arriving soon</span>
+              <span className={`text-sm font-bold ${accent.unitsColor} animate-pulse`}>Arriving soon</span>
             )}
           </div>
         )}
 
         {/* Date + stock row */}
-        <div className="flex items-center justify-between pt-2 border-t border-indigo-500/10 mt-auto">
+        <div className={`flex items-center justify-between pt-2 border-t ${accent.borderBottom} mt-auto`}>
           <div className="flex flex-col gap-0.5">
             {item.comingSoonDate && (
               <span className="text-[11px] text-white/40 font-medium">{formatDate(item.comingSoonDate)}</span>
@@ -245,7 +316,7 @@ function ComingSoonCard({ item, index }) {
           {item.comingSoonStock && (
             <div className="flex flex-col items-end gap-0.5">
               <span className="text-[10px] text-white/25 uppercase tracking-wide">Expected</span>
-              <span className="text-sm font-bold text-indigo-300">~{item.comingSoonStock} units</span>
+              <span className={`text-sm font-bold ${accent.unitsColor}`}>~{item.comingSoonStock} units</span>
             </div>
           )}
         </div>
@@ -261,7 +332,18 @@ export default function Home() {
   const [search, setSearch]         = useState('');
   const [cat, setCat]               = useState('All');
   const [cond, setCond]             = useState('All');
+  const [stage, setStage]           = useState('All');
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  // Pre-fill search from ?search= URL param so carousel deep-links work
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('search');
+    if (q) setSearch(q);
+    const s = params.get('stage');
+    if (s && STAGES.includes(s)) setStage(s);
+  }, []);
 
   useEffect(() => {
     function load() {
@@ -279,8 +361,14 @@ export default function Home() {
     if (cat  !== 'All' && item.category  !== cat)  return false;
     if (cond !== 'All' && item.condition !== cond) return false;
     if (search && !item.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (stage !== 'All') {
+      const isWave2 = /wave\s*2/i.test(item.name);
+      if (stage === 'In Stock' && (item.comingSoon || item.quantity === 0)) return false;
+      if (stage === 'Wave 2' && !(item.comingSoon && isWave2)) return false;
+      if (stage === 'Preorder' && !(item.comingSoon && !isWave2)) return false;
+    }
     return true;
-  }), [items, cat, cond, search]);
+  }), [items, cat, cond, search, stage]);
 
   const inStock    = filtered.filter(i => i.quantity > 0 && !i.comingSoon);
   const comingSoon = filtered.filter(i => i.comingSoon);
@@ -289,9 +377,10 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Santi's Sealed Product</title>
+        <title>SantahsCards — Live Wholesale Inventory</title>
+        <meta name="description" content="Live wholesale inventory of sealed Pokémon TCG product from SantahsCards. Bulk pricing, preorders, and Wave 2 allocations." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#000000" />
+        <meta name="theme-color" content="#0d0d14" />
       </Head>
 
       <div className="min-h-screen dot-grid text-white">
@@ -304,11 +393,11 @@ export default function Home() {
           <div className="absolute bottom-0 left-1/3 w-[300px] h-[150px] rounded-full bg-purple-600/[0.1] blur-[80px] pointer-events-none" />
 
 
-          <div className="relative z-10 max-w-lg mx-auto">
+          <div className="relative z-10 max-w-2xl mx-auto">
             <div className="flex items-center justify-center gap-2 mb-5 flex-wrap">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50 text-xs font-medium backdrop-blur-md">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse" />
-                Live inventory
+                Live wholesale inventory
               </div>
               {lastUpdated && (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.07] text-white/35 text-xs font-medium backdrop-blur-md">
@@ -319,8 +408,30 @@ export default function Home() {
                 </div>
               )}
             </div>
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">Santi's Sealed Product</h1>
-            <p className="text-white/35 text-sm">Browse available stock · Prices per unit</p>
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight gradient-text leading-[1.1] mb-3">SantahsCards Wholesale</h1>
+            <p className="text-white/45 text-sm sm:text-base max-w-md mx-auto">
+              Live sealed-product inventory · Market-driven bulk pricing · Wave 2 &amp; preorder allocations
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
+              <a
+                href="https://cravinos.dev/"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-medium hover:bg-emerald-500/20 transition-colors"
+              >
+                ← Back to SantahsCards
+              </a>
+              <a
+                href="https://cravinos.dev/wholesale-preorder"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-medium hover:bg-amber-500/20 transition-colors"
+              >
+                Request a quote →
+              </a>
+              <a
+                href="https://cravinos.dev/contact?type=business"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] border border-white/[0.10] text-white/65 font-medium hover:bg-white/[0.08] transition-colors"
+              >
+                Business inquiries
+              </a>
+            </div>
           </div>
         </header>
 
@@ -333,6 +444,10 @@ export default function Home() {
             <input type="text" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white placeholder-white/25 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all" />
           </div>
+          <select value={stage} onChange={e => setStage(e.target.value)}
+            className="px-3 py-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white/60 focus:outline-none focus:border-amber-500/50 cursor-pointer hover:bg-white/[0.08] transition-all">
+            {STAGES.map(s => <option key={s} className="bg-[#0c0c14]">{s === 'All' ? 'All Stages' : s}</option>)}
+          </select>
           <select value={cat} onChange={e => setCat(e.target.value)}
             className="px-3 py-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white/60 focus:outline-none focus:border-indigo-500/50 cursor-pointer hover:bg-white/[0.08] transition-all">
             {CATEGORIES.map(c => <option key={c} className="bg-[#0c0c14]">{c === 'All' ? 'All Categories' : c}</option>)}
